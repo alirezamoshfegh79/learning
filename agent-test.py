@@ -130,39 +130,3 @@ class AgentFoundation:
             return False
 
 
-# Example usage and testing
-if __name__ == "__main__":
-    try:
-        print("=== Initializing CI/CD Agent ===")
-        agent = AgentFoundation()
-        
-        # Verify API key is working
-        print("=== Verifying API key ===")
-        if agent.verify_api_key():
-            print("✓ API key verified successfully!")
-        else:
-            print("✗ API key verification failed!")
-            exit(1)
-        
-        # Test cases
-        test_requests = [
-            "Can you analyze this code snippet: def hello(): print('world')",
-            "How can I optimize my GitHub Actions pipeline?",
-            "Check for security vulnerabilities in my deployment script"
-        ]
-        
-        print("=== Running test cases ===")
-        
-        for i, request in enumerate(test_requests, 1):
-            print(f"Test Case {i}:")
-            print(f"Request: {request}")
-            result = agent.analyze_request(request)
-            print(f"Status: {result['status']}")
-            print(f"Response: {result['response']}")
-            print(f"Interaction Type: {result['metadata']['interaction_type']}")
-            print(f"Confidence Score: {result['metadata']['confidence_score']}")
-            print("-" * 50)
-
-    except Exception as e:
-        print(f"Error during initialization: {str(e)}")
-        print("Please check your .env file and API key configuration.")
