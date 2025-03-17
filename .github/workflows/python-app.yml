@@ -35,7 +35,7 @@ jobs:
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       run: |
-        python test_agent.py
+        python test.py
 
     - name: Check API Key
       run: |
