@@ -4,7 +4,7 @@ from langchain.chains import ConversationChain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 class AgentFoundation:
     def __init__(self):
@@ -16,8 +16,8 @@ class AgentFoundation:
         if not self.api_key:
             raise ValueError("No API key found! Make sure OPENAI_API_KEY is set in your .env file")
         
-        # Print first few characters of API key to verify it's loaded (for testing)
-        print(f"API Key loaded successfully! Key starts with: {self.api_key[:5]}...")
+        # Log API key presence without exposing any characters
+        print("API Key loaded successfully!")
         
         self.agent_identity = """
         You are a specialized CI/CD AI Agent with expertise in:
@@ -30,47 +30,65 @@ class AgentFoundation:
         providing accurate analysis and actionable recommendations.
         """
         
+        self._initialize_llm()
+        self._initialize_conversation_chain()
+
+    def _initialize_llm(self) -> None:
+        """Initialize the language model with error handling"""
         try:
             self.llm = ChatOpenAI(
-                model_name="gpt-3.5-turbo",  # Changed from gpt-4 for wider compatibility
+                model_name="gpt-3.5-turbo",
                 temperature=0.7,
                 api_key=self.api_key
             )
             print("LLM initialized successfully!")
         except Exception as e:
-            print(f"Detailed error during LLM initialization: {str(e)}")
-            raise Exception(f"Error initializing LLM: {str(e)}")
-        
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
+            error_msg = f"Error initializing LLM: {str(e)}"
+            print(f"Detailed error during LLM initialization: {error_msg}")
+            raise RuntimeError(error_msg)
 
-        # Initialize conversation chain with custom prompt
-        self.prompt = PromptTemplate(
-            input_variables=["chat_history", "input"],
-            template="""
-            {agent_identity}
+    def _initialize_conversation_chain(self) -> None:
+        """Initialize the conversation chain with memory and prompt"""
+        try:
+            self.memory = ConversationBufferMemory(
+                memory_key="chat_history",
+                return_messages=True
+            )
 
-            Previous conversation context:
-            {chat_history}
+            self.prompt = PromptTemplate(
+                input_variables=["chat_history", "input"],
+                template=f"{self.agent_identity}\n\n"
+                        "Previous conversation context:\n"
+                        "{chat_history}\n\n"
+                        "Human: {input}\n"
+                        "AI Assistant: Let me help you with that."
+            )
 
-            Human: {input}
-            AI Assistant: Let me help you with that.
-            """.format(agent_identity=self.agent_identity, chat_history="{chat_history}", input="{input}")
-        )
-
-        self.conversation = ConversationChain(
-            llm=self.llm,
-            memory=self.memory,
-            prompt=self.prompt,
-            verbose=True
-        )
+            self.conversation = ConversationChain(
+                llm=self.llm,
+                memory=self.memory,
+                prompt=self.prompt,
+                verbose=True
+            )
+            print("Conversation chain initialized successfully!")
+        except Exception as e:
+            error_msg = f"Error initializing conversation chain: {str(e)}"
+            print(f"Detailed error: {error_msg}")
+            raise RuntimeError(error_msg)
 
     def analyze_request(self, user_input: str) -> Dict[str, Any]:
         """
         Analyzes the user's request and provides appropriate response
         """
+        if not user_input or not user_input.strip():
+            return {
+                "status": "error",
+                "error": "Empty input provided",
+                "metadata": {
+                    "error_type": "ValueError"
+                }
+            }
+
         try:
             response = self.conversation.predict(input=user_input)
             
@@ -97,14 +115,17 @@ class AgentFoundation:
         """
         input_lower = user_input.lower()
         
-        if any(word in input_lower for word in ["analyze", "review", "check"]):
-            return "code_analysis"
-        elif any(word in input_lower for word in ["pipeline", "workflow", "ci", "cd"]):
-            return "pipeline_optimization"
-        elif any(word in input_lower for word in ["secure", "vulnerability", "risk"]):
-            return "security_assessment"
-        else:
-            return "general_inquiry"
+        keywords = {
+            "code_analysis": ["analyze", "review", "check", "function", "code"],
+            "pipeline_optimization": ["pipeline", "workflow", "ci", "cd", "actions"],
+            "security_assessment": ["secure", "vulnerability", "risk", "safety"]
+        }
+        
+        for interaction_type, words in keywords.items():
+            if any(word in input_lower for word in words):
+                return interaction_type
+        
+        return "general_inquiry"
 
     def _calculate_confidence_score(self, response: str) -> float:
         """
@@ -112,21 +133,26 @@ class AgentFoundation:
         """
         score = 0.7  # Base confidence score
         
+        # Analyze response complexity
         if len(response) > 200:
             score += 0.1
-        if "however" in response.lower() or "alternatively" in response.lower():
-            score += 0.1
+        if len(response) > 500:
+            score += 0.05
+            
+        # Check for analytical indicators
+        indicators = ["however", "alternatively", "consider", "recommend", "analysis"]
+        score += 0.02 * sum(1 for indicator in indicators if indicator in response.lower())
             
         return min(score, 1.0)
 
     def verify_api_key(self) -> bool:
-       
+        """
+        Verifies if the API key is valid by making a test call
+        """
         try:
-                # Make a simple test call
-            test_response = self.llm.invoke("Test message")
+            # Make a minimal test call
+            self.llm.invoke("Test")
             return True
         except Exception as e:
             print(f"API Key verification failed: {str(e)}")
             return False
-
-
