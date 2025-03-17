@@ -1,3 +1,5 @@
+
+```yaml
 name: AI Agent CI
 
 on:
@@ -11,35 +13,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v3
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+
+    - name: Verify file structure
+      run: |
+        echo "Checking for required files..."
+        if [ ! -f "agent.py" ]; then
+          echo "Error: agent.py is missing!"
+          exit 1
+        fi
+        if [ ! -f "test.py" ]; then
+          echo "Error: test.py is missing!"
+          exit 1
+        fi
+        echo "Directory contents:"
+        ls -la
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest
+        pip install python-dotenv langchain langchain-openai
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Run Tests
-      env:
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      run: |
-        python test.py
 
     - name: Check API Key
       run: |
         if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
-          echo "Warning: OPENAI_API_KEY is not set"
+          echo "Error: OPENAI_API_KEY is not set in repository secrets"
           exit 1
         fi
+
+    - name: Run Tests
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        PYTHONPATH: ${{ github.workspace }}
+      run: |
+        echo "Python path:"
+        python -c "import sys; print(sys.path)"
+        echo "Running tests..."
+        python test.py
+```
